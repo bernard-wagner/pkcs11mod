@@ -73,3 +73,13 @@ type Backend interface {
 	GenerateRandom(pkcs11.SessionHandle, int) ([]byte, error)
 	WaitForSlotEvent(uint) chan pkcs11.SlotEvent
 }
+
+// BackendExtended is an interface for backends that implements variable
+// length buffers not supported defined pkcs11.Ctx. Variable length buffers
+// are used by OpenSSL and most PKCS11 benchmarking tools.
+type BackendExtended interface {
+	EncryptNull(pkcs11.SessionHandle, []byte) (int, error)
+	DecryptNull(pkcs11.SessionHandle, []byte) (int, error)
+	DigestNull(pkcs11.SessionHandle, []byte) (int, error)
+	SignNull(pkcs11.SessionHandle, []byte) (int, error)
+}

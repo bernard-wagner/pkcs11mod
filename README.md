@@ -2,24 +2,18 @@
 
 pkcs11mod allows you to create PKCS#11 modules in Go.  You implement your PKCS#11 functions by providing a struct that implements the same API as `pkcs11.Ctx` from Miek Gieben's pkcs11 package; pkcs11mod takes care of exposing this as a C ABI library.
 
+Note: This hard fork implements additional functions that are not part of `pkcs11.Ctx`. These method `SignNull`, `DigestNull`, `EncryptNull` and `DecryptNull` implement the logic for variable length buffers ([Section 5.2 of the PKCS11 2.40 specification](http://docs.oasis-open.org/pkcs11/pkcs11-base/v2.40/os/pkcs11-base-v2.40-os.html#_Toc416959738)).
+
 ## Example usage
 
-First, build pkcs11mod:
-
-~~~
-go get -d github.com/namecoin/pkcs11mod
-go generate github.com/namecoin/pkcs11mod
-go get github.com/namecoin/pkcs11mod
-~~~
-
-Then, create a Go program like this:
+Create a Go program like this:
 
 ~~~
 package main
 
 import (
 	"github.com/miekg/pkcs11"
-	"github.com/namecoin/pkcs11mod"
+	"github.com/bernard-wagner/pkcs11mod"
 )
 
 func init() {

@@ -3,17 +3,6 @@
 package pkcs11mod
 
 /*
-#cgo windows CFLAGS: -DPACKED_STRUCTURES
-#cgo windows LDFLAGS: -lpkcs11_exported -L .
-#cgo linux LDFLAGS: -lpkcs11_exported -ldl -L .
-#cgo darwin CFLAGS: -I/usr/local/share/libtool
-#cgo darwin LDFLAGS: -lpkcs11_exported -L/usr/local/lib/ -L .
-#cgo openbsd CFLAGS: -I/usr/local/include/
-#cgo openbsd LDFLAGS: -lpkcs11_exported -L/usr/local/lib/ -L .
-#cgo freebsd CFLAGS: -I/usr/local/include/
-#cgo freebsd LDFLAGS: -lpkcs11_exported -L/usr/local/lib/ -L .
-#cgo LDFLAGS: -lpkcs11_exported -L .
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -23,36 +12,13 @@ package pkcs11mod
 import "C"
 
 import (
-	"io"
 	"log"
-	"os"
 	"unsafe"
 
 	"github.com/miekg/pkcs11"
 )
 
-var logfile io.Closer
 var backend Backend
-
-func init() {
-	f, err := os.OpenFile(os.Getenv("HOME")+"/pkcs11mod.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
-	if err != nil {
-		log.Printf("error opening file (will try fallback): %v", err)
-		f, err = os.OpenFile("./pkcs11mod.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
-	}
-	if err != nil {
-		log.Printf("error opening file (will try fallback): %v", err)
-		f, err = os.OpenFile(os.Getenv("APPDATA")+"/pkcs11mod.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
-	}
-	if err != nil {
-		log.Printf("error opening file (will fallback to console logging): %v", err)
-	}
-	if err == nil {
-		log.SetOutput(f)
-		logfile = f
-	}
-	log.Println("Namecoin PKCS#11 module loading")
-}
 
 func SetBackend(b Backend) {
 	backend = b
@@ -667,6 +633,18 @@ func Go_Encrypt(sessionHandle C.CK_SESSION_HANDLE, pData C.CK_BYTE_PTR, ulDataLe
 	goSessionHandle := pkcs11.SessionHandle(sessionHandle)
 	goData := C.GoBytes(unsafe.Pointer(pData), C.int(ulDataLen))
 
+	if pEncryptedData == nil {
+		if backend, ok := backend.(BackendExtended); ok {
+			size, err := backend.EncryptNull(goSessionHandle, goData)
+			if err != nil {
+				return fromError(err)
+			}
+			*pulEncryptedDataLen = C.CK_ULONG(size)
+			return fromError(nil)
+		}
+		return C.CKR_FUNCTION_NOT_SUPPORTED
+	}
+
 	goEncryptedData := (*[1 << 30]byte)(unsafe.Pointer(pEncryptedData))[:*pulEncryptedDataLen:*pulEncryptedDataLen]
 
 	encryptedData, err := backend.Encrypt(goSessionHandle, goData)
@@ -753,6 +731,18 @@ func Go_Decrypt(sessionHandle C.CK_SESSION_HANDLE, pEncryptedData C.CK_BYTE_PTR,
 	goSessionHandle := pkcs11.SessionHandle(sessionHandle)
 	goEncryptedData := C.GoBytes(unsafe.Pointer(pEncryptedData), C.int(ulEncryptedDataLen))
 
+	if pData == nil {
+		if backend, ok := backend.(BackendExtended); ok {
+			size, err := backend.DecryptNull(goSessionHandle, goEncryptedData)
+			if err != nil {
+				return fromError(err)
+			}
+			*pulDataLen = C.CK_ULONG(size)
+			return fromError(nil)
+		}
+		return C.CKR_FUNCTION_NOT_SUPPORTED
+	}
+
 	goData := (*[1 << 30]byte)(unsafe.Pointer(pData))[:*pulDataLen:*pulDataLen]
 
 	data, err := backend.Decrypt(goSessionHandle, goEncryptedData)
@@ -837,6 +827,18 @@ func Go_Digest(sessionHandle C.CK_SESSION_HANDLE, pData C.CK_BYTE_PTR, ulDataLen
 	goSessionHandle := pkcs11.SessionHandle(sessionHandle)
 	goData := C.GoBytes(unsafe.Pointer(pData), C.int(ulDataLen))
 
+	if pDigest == nil {
+		if backend, ok := backend.(BackendExtended); ok {
+			size, err := backend.DigestNull(goSessionHandle, goData)
+			if err != nil {
+				return fromError(err)
+			}
+
+			*pulDigestLen = C.CK_ULONG(size)
+			return fromError(nil)
+		}
+		return C.CKR_FUNCTION_NOT_SUPPORTED
+	}
 	goDigest := (*[1 << 30]byte)(unsafe.Pointer(pDigest))[:*pulDigestLen:*pulDigestLen]
 
 	digest, err := backend.Digest(goSessionHandle, goData)
@@ -921,6 +923,17 @@ func Go_Sign(sessionHandle C.CK_SESSION_HANDLE, pData C.CK_BYTE_PTR, ulDataLen C
 	goSessionHandle := pkcs11.SessionHandle(sessionHandle)
 	goData := C.GoBytes(unsafe.Pointer(pData), C.int(ulDataLen))
 
+	if pSignature == nil {
+		if backend, ok := backend.(BackendExtended); ok {
+			size, err := backend.SignNull(goSessionHandle, goData)
+			if err != nil {
+				return fromError(err)
+			}
+			*pulSignatureLen = C.CK_ULONG(size)
+			return fromError(nil)
+		}
+		return C.CKR_FUNCTION_NOT_SUPPORTED
+	}
 	goSignature := (*[1 << 30]byte)(unsafe.Pointer(pSignature))[:*pulSignatureLen:*pulSignatureLen]
 
 	signature, err := backend.Sign(goSessionHandle, goData)
